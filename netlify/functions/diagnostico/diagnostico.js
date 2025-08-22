@@ -6,6 +6,7 @@ const client = new OpenAI({
 
 exports.handler = async (event) => {
   try {
+    console.log("Evento recibido:", event.body); // 👈 log para ver la imagen que llega
     const body = JSON.parse(event.body || "{}");
     if (!body.imagen) {
       return {
@@ -14,13 +15,14 @@ exports.handler = async (event) => {
       };
     }
 
-    // Llamada a OpenAI
+    console.log("Llamando a OpenAI con imagen:", body.imagen);
+
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",   // modelo económico con visión
+      model: "gpt-4o-mini", // 👈 modelo con visión
       messages: [
         {
           role: "system",
-          content: "Eres un experto en auriculoterapia. Analiza imágenes de orejas y da un diagnóstico en texto breve.",
+          content: "Eres un experto en auriculoterapia. Analiza imágenes de orejas y da un diagnóstico breve.",
         },
         {
           role: "user",
@@ -32,6 +34,8 @@ exports.handler = async (event) => {
       ],
     });
 
+    console.log("Respuesta completa de OpenAI:", JSON.stringify(completion, null, 2));
+
     const diagnostico = completion.choices[0].message.content;
 
     return {
@@ -39,7 +43,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ diagnostico }),
     };
   } catch (error) {
-    console.error("Error en diagnostico.js:", error);
+    console.error("Error en diagnostico.js:", error); // 👈 esto sale en los logs de Netlify
     return {
       statusCode: 500,
       body: JSON.stringify({ error: "No se pudo obtener diagnóstico" }),
