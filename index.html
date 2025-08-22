@@ -23,10 +23,10 @@
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       width: 100%;
-      max-width: 600px;
+      max-width: 700px;
       text-align: center;
     }
-    input, button {
+    input, select, button {
       margin: 10px 0;
       padding: 10px;
       width: 100%;
@@ -49,117 +49,97 @@
       padding: 15px;
       background: #ecf0f1;
       border-radius: 8px;
+      white-space: pre-wrap;
       text-align: left;
       font-size: 16px;
       color: #2c3e50;
     }
-    #resultado ul {
-      margin-top: 10px;
-      padding-left: 20px;
-    }
-    .advertencia {
-      margin-top: 15px;
-      font-size: 14px;
-      font-style: italic;
-      color: #8e44ad;
-    }
-    #descargarBtn {
-      display: none;
-      margin-top: 15px;
-      background: #27ae60;
-    }
-    #descargarBtn:hover {
-      background: #1e8449;
-    }
   </style>
 </head>
 <body>
-  <h1>Guía de Auriculoterapia</h1>
+  <h1>Guía Reflexológica de Auriculoterapia</h1>
   <div class="container">
-    <input type="file" id="fotoInput" accept="image/*" />
-    <button onclick="enviarFoto()">Analizar oreja</button>
+    <label>📷 Subir foto de la oreja izquierda:</label>
+    <input type="file" id="orejaIzquierda" accept="image/*" />
+
+    <label>📷 Subir foto de la oreja derecha:</label>
+    <input type="file" id="orejaDerecha" accept="image/*" />
+
+    <select id="accion">
+      <option value="diagnostico">Obtener guía</option>
+    </select>
+    <button onclick="enviarFotos()">Enviar fotos</button>
     <div id="resultado">Aquí aparecerá la guía...</div>
-    <button id="descargarBtn" onclick="descargarGuia()">📥 Descargar guía en PDF</button>
+    <button id="descargarBtn" style="display:none;" onclick="descargarPDF()">📄 Descargar PDF</button>
   </div>
 
-  <!-- Librería jsPDF desde CDN -->
+  <!-- Librería jsPDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <script>
-    let ultimaGuia = ""; // guardamos el texto recibido
-
-    async function enviarFoto() {
-      const fileInput = document.getElementById('fotoInput');
+    async function enviarFotos() {
+      const inputIzq = document.getElementById('orejaIzquierda');
+      const inputDer = document.getElementById('orejaDerecha');
+      const accion = document.getElementById('accion').value;
       const resultadoDiv = document.getElementById('resultado');
       const descargarBtn = document.getElementById('descargarBtn');
 
-      if (fileInput.files.length === 0) {
-        resultadoDiv.innerText = "⚠️ Por favor selecciona una imagen primero.";
+      if (inputIzq.files.length === 0 && inputDer.files.length === 0) {
+        resultadoDiv.innerText = "⚠️ Por favor selecciona al menos una imagen.";
         return;
       }
 
-      const file = fileInput.files[0];
-      const reader = new FileReader();
+      resultadoDiv.innerText = "⏳ Procesando imágenes...";
+      descargarBtn.style.display = "none";
 
-      reader.onloadend = async () => {
-        const base64Image = reader.result;
-
-        resultadoDiv.innerText = "⏳ Procesando la imagen...";
-        descargarBtn.style.display = "none";
-
-        try {
-          const response = await fetch("/.netlify/functions/diagnostico", {
-            method: "POST",
-            body: JSON.stringify({ imagen: base64Image }),
-          });
-
-          const data = await response.json();
-
-          if (data.guia) {
-            ultimaGuia = data.guia;
-
-            // Mostrar en pantalla
-            const partes = data.guia.split("👉");
-            let html = `<p>${partes[0]}</p>`;
-
-            if (partes[1]) {
-              const puntos = partes[1].split(",");
-              html += "<ul>";
-              puntos.forEach(p => {
-                html += `<li>${p.trim()}</li>`;
-              });
-              html += "</ul>";
-            }
-
-            html += `<p class="advertencia">⚠️ Nota: Esta guía es solo orientativa y no reemplaza la valoración médica profesional.</p>`;
-
-            resultadoDiv.innerHTML = html;
-            descargarBtn.style.display = "block";
-          } else {
-            resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se obtuvo guía.");
-          }
-        } catch (error) {
-          console.error(error);
-          resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
-        }
+      const leerArchivo = (file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
       };
 
-      reader.readAsDataURL(file);
+      const data = {};
+      if (inputIzq.files.length > 0) {
+        data.orejaIzquierda = await leerArchivo(inputIzq.files[0]);
+      }
+      if (inputDer.files.length > 0) {
+        data.orejaDerecha = await leerArchivo(inputDer.files[0]);
+      }
+
+      try {
+        const response = await fetch(`/.netlify/functions/${accion}`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+
+        if (result.guia) {
+          resultadoDiv.innerText = "✅ Guía recibida:\n\n" + result.guia;
+          descargarBtn.style.display = "block";
+        } else {
+          resultadoDiv.innerText = "⚠️ Error: " + (result.error || "No se obtuvo guía.");
+        }
+      } catch (error) {
+        console.error(error);
+        resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
+      }
     }
 
-    function descargarGuia() {
-      if (!ultimaGuia) return;
-
+    function descargarPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
+      const texto = document.getElementById("resultado").innerText;
 
-      const textoFinal = ultimaGuia + "\n\n⚠️ Nota: Esta guía es solo orientativa y no reemplaza la valoración médica profesional.";
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(14);
+      doc.text("Guía Reflexológica de Auriculoterapia", 10, 20);
+      doc.setFontSize(12);
+      doc.text(texto, 10, 30, { maxWidth: 180 });
 
-      // Dividimos el texto en líneas para que no se corte
-      const lineas = doc.splitTextToSize(textoFinal, 180);
-      doc.text(lineas, 15, 20);
-
-      doc.save("guia_auriculoterapia.pdf");
+      doc.save("guia-auriculoterapia.pdf");
     }
   </script>
 </body>
