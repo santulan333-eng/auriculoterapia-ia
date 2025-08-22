@@ -7,7 +7,6 @@ const client = new OpenAI({
 exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || "{}");
-
     if (!body.imagen) {
       return {
         statusCode: 400,
@@ -15,39 +14,16 @@ exports.handler = async (event) => {
       };
     }
 
+    // Llamada a OpenAI con visión
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini", // Modelo con visión
+      model: "gpt-4o-mini", // modelo con visión
       messages: [
         {
           role: "system",
-          content: `Eres un asistente especializado en auriculoterapia. 
-          Observa cuidadosamente la imagen de la oreja y describe posibles señales, zonas de tensión o desequilibrio 
-          según la práctica de auriculoterapia. 
-          Ofrece tu análisis solo con fines educativos y de bienestar general, 
-          nunca como diagnóstico médico. 
-          Sé claro y breve en tus respuestas.`,
+          content: "Eres un experto en auriculoterapia y reflexología de la oreja. Tu rol es ofrecer una guía educativa, apreciativa y basada en los modelos reflexológicos. Nunca des un diagnóstico médico. Explica observaciones posibles, zonas que podrían estar reflejadas en la oreja y su relación con la salud de manera informativa y comprensible.",
         },
         {
           role: "user",
           content: [
-            { type: "text", text: "Analiza esta oreja y describe lo que observas según la auriculoterapia." },
-            { type: "image_url", image_url: body.imagen },
-          ],
-        },
-      ],
-    });
-
-    const diagnostico = completion.choices[0].message.content;
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ diagnostico }),
-    };
-  } catch (error) {
-    console.error("Error en diagnostico.js:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "No se pudo obtener diagnóstico" }),
-    };
-  }
-};
+            { type: "text", text: "Por favor analiza esta imagen de la oreja y dame una guía apreciativa y educativa basada en los modelos reflexológicos de auriculoterapia." },
+            { type: "image_url", image_url: body.imagen }
