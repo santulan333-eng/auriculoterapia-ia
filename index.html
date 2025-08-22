@@ -1,61 +1,111 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Auriculoterapia IA</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diagnóstico de Auriculoterapia</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px;
+    }
+    h1 {
+      color: #2c3e50;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+      text-align: center;
+    }
+    input, select, button {
+      margin: 10px 0;
+      padding: 10px;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    #resultado {
+      margin-top: 20px;
+      padding: 15px;
+      background: #ecf0f1;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      text-align: left;
+      font-size: 16px;
+      color: #2c3e50;
+    }
+  </style>
 </head>
 <body>
-  <h1>Sube tu foto de la oreja</h1>
-
-  <input type="file" id="foto" accept="image/*"><br><br>
-
-  <label for="funcion">Elegir función:</label>
-  <select id="funcion">
-    <option value="testimagen">🔍 Test Imagen (solo prueba)</option>
-    <option value="diagnostico">🧠 Diagnóstico IA</option>
-  </select>
-
-  <br><br>
-  <button onclick="enviarFoto()">Enviar foto</button>
-
-  <h2>Resultado:</h2>
-  <pre id="resultado"></pre>
+  <h1>Diagnóstico de Auriculoterapia</h1>
+  <div class="container">
+    <input type="file" id="fotoInput" accept="image/*" />
+    <select id="accion">
+      <option value="diagnostico">Obtener diagnóstico</option>
+    </select>
+    <button onclick="enviarFoto()">Enviar foto</button>
+    <div id="resultado">Aquí aparecerá el diagnóstico...</div>
+  </div>
 
   <script>
     async function enviarFoto() {
-      const archivo = document.getElementById("foto").files[0];
-      if (!archivo) {
-        alert("Por favor selecciona una foto primero");
+      const fileInput = document.getElementById('fotoInput');
+      const accion = document.getElementById('accion').value;
+      const resultadoDiv = document.getElementById('resultado');
+
+      if (fileInput.files.length === 0) {
+        resultadoDiv.innerText = "⚠️ Por favor selecciona una imagen primero.";
         return;
       }
 
-      const funcion = document.getElementById("funcion").value;
-
-      // Convierte la imagen a Base64
+      const file = fileInput.files[0];
       const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result;
 
-        document.getElementById("resultado").textContent = "Enviando imagen...";
+      reader.onloadend = async () => {
+        const base64Image = reader.result;
+
+        resultadoDiv.innerText = "⏳ Procesando la imagen...";
 
         try {
-          const resp = await fetch(`/.netlify/functions/${funcion}`, {
+          const response = await fetch(`/.netlify/functions/${accion}`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ imagen: base64 })
+            body: JSON.stringify({ imagen: base64Image }),
           });
 
-          const data = await resp.json();
-          document.getElementById("resultado").textContent =
-            JSON.stringify(data, null, 2);
-        } catch (err) {
-          document.getElementById("resultado").textContent =
-            "❌ Error en la solicitud: " + err.message;
+          const data = await response.json();
+
+          if (data.diagnostico) {
+            resultadoDiv.innerText = "✅ Diagnóstico recibido:\n\n" + data.diagnostico;
+          } else {
+            resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se obtuvo diagnóstico.");
+          }
+        } catch (error) {
+          console.error(error);
+          resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
         }
       };
-      reader.readAsDataURL(archivo);
+
+      reader.readAsDataURL(file);
     }
   </script>
 </body>
