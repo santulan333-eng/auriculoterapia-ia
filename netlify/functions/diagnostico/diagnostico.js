@@ -1,71 +1,60 @@
-// netlify/functions/diagnostico/diagnostico.js
-const OpenAI = require("openai");
+import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// 🔹 Función auxiliar: analiza una sola oreja
-async function analizarOreja(imagenBase64, lado) {
-  const prompt = `
-Eres un experto en auriculoterapia.
-Analiza la imagen de la oreja (${lado}).
-Da SOLO un resumen breve y claro en máximo 5 frases.
-Incluye:
-- puntos auriculares relevantes,
-- cambios de color/forma visibles,
-- posibles disfunciones principales.
-Evita textos largos.
-`;
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini", // modelo económico
-    messages: [
-      { role: "system", content: "Eres un asistente experto en auriculoterapia." },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          {
-            type: "image_url",
-            image_url: {
-              url: imagenBase64,
-            },
-          },
-        ],
-      },
-    ],
-    max_tokens: 400, // 👈 evita respuestas largas que agotan el límite
-  });
-
-  return completion.choices[0].message.content.trim();
-}
-
-exports.handler = async (event) => {
+export async function handler(event) {
   try {
-    const body = JSON.parse(event.body || "{}");
-    const { orejaIzquierda, orejaDerecha } = body;
+    const { orejaIzquierda, orejaDerecha } = JSON.parse(event.body || "{}");
 
-    let guia = { izquierda: "", derecha: "" };
-
-    // ⚡ Analiza solo si hay imagen
-    if (orejaIzquierda) {
-      guia.izquierda = await analizarOreja(orejaIzquierda, "izquierda");
+    if (!orejaIzquierda && !orejaDerecha) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Faltan imágenes de las orejas" })
+      };
     }
 
-    if (orejaDerecha) {
-      guia.derecha = await analizarOreja(orejaDerecha, "derecha");
+    // Construir prompt
+    const prompt = `
+Eres un experto en auriculoterapia.
+Analiza las siguientes imágenes de orejas y da una guía clara, detallada y específica de diagnóstico y posibles recomendaciones.
+
+- Oreja izquierda: ${orejaIzquierda ? "Incluida" : "No incluida"}
+- Oreja derecha: ${orejaDerecha ? "Incluida" : "No incluida"}
+
+Responde en JSON con esta estructura:
+{
+  "izquierda": "análisis detallado de la oreja izquierda",
+  "derecha": "análisis detallado de la oreja derecha"
+}
+    `;
+
+    // Llamada al modelo
+    const completion = await client.responses.create({
+      model: "gpt-4o-mini",
+      input: prompt
+    });
+
+    // Extraer texto de la respuesta
+    const raw = completion.output_text || "{}";
+    let guia = {};
+    try {
+      guia = JSON.parse(raw);
+    } catch (e) {
+      guia = { izquierda: raw, derecha: raw };
     }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ guia }),
+      body: JSON.stringify({ guia })
     };
+
   } catch (error) {
     console.error("❌ Error en diagnostico.js:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "No se pudo generar el diagnóstico" }),
+      body: JSON.stringify({ error: error.message })
     };
   }
-};
+}
