@@ -6,9 +6,19 @@
 </head>
 <body>
   <h1>Sube tu foto de la oreja</h1>
-  <input type="file" id="foto" accept="image/*">
+
+  <input type="file" id="foto" accept="image/*"><br><br>
+
+  <label for="funcion">Elegir función:</label>
+  <select id="funcion">
+    <option value="testimagen">🔍 Test Imagen (solo prueba)</option>
+    <option value="diagnostico">🧠 Diagnóstico IA</option>
+  </select>
+
+  <br><br>
   <button onclick="enviarFoto()">Enviar foto</button>
 
+  <h2>Resultado:</h2>
   <pre id="resultado"></pre>
 
   <script>
@@ -19,15 +29,17 @@
         return;
       }
 
+      const funcion = document.getElementById("funcion").value;
+
       // Convierte la imagen a Base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result;
 
-        document.getElementById("resultado").textContent = "Analizando...";
+        document.getElementById("resultado").textContent = "Enviando imagen...";
 
         try {
-          const resp = await fetch("/.netlify/functions/testimagen", {
+          const resp = await fetch(`/.netlify/functions/${funcion}`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json"
@@ -37,10 +49,10 @@
 
           const data = await resp.json();
           document.getElementById("resultado").textContent =
-            data.resultado || data.error;
+            JSON.stringify(data, null, 2);
         } catch (err) {
           document.getElementById("resultado").textContent =
-            "Error en la solicitud";
+            "❌ Error en la solicitud: " + err.message;
         }
       };
       reader.readAsDataURL(archivo);
