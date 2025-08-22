@@ -5,31 +5,46 @@
   <title>Auriculoterapia IA</title>
 </head>
 <body>
-  <h1>Sube tu foto de oreja</h1>
+  <h1>Sube tu foto de la oreja</h1>
+  <input type="file" id="foto" accept="image/*">
+  <button onclick="enviarFoto()">Enviar foto</button>
 
-  <form id="uploadForm">
-    <input type="file" id="foto" accept="image/*">
-    <button type="submit">Enviar foto</button>
-  </form>
-
-  <p id="resultado"></p>
+  <pre id="resultado"></pre>
 
   <script>
-    // Cuando el usuario envíe el formulario
-    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      document.getElementById("resultado").textContent = "Procesando...";
-
-      try {
-        // Llamamos a la función en Netlify
-        const response = await fetch("/.netlify/functions/diagnostico");
-        const data = await response.json();
-
-        document.getElementById("resultado").textContent = JSON.stringify(data);
-      } catch (error) {
-        document.getElementById("resultado").textContent = "Error: " + error.message;
+    async function enviarFoto() {
+      const archivo = document.getElementById("foto").files[0];
+      if (!archivo) {
+        alert("Por favor selecciona una foto primero");
+        return;
       }
-    });
+
+      // Convierte la imagen a Base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result;
+
+        document.getElementById("resultado").textContent = "Analizando...";
+
+        try {
+          const resp = await fetch("/.netlify/functions/diagnostico", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ imagen: base64 })
+          });
+
+          const data = await resp.json();
+          document.getElementById("resultado").textContent =
+            data.resultado || data.error;
+        } catch (err) {
+          document.getElementById("resultado").textContent =
+            "Error en la solicitud";
+        }
+      };
+      reader.readAsDataURL(archivo);
+    }
   </script>
 </body>
 </html>
