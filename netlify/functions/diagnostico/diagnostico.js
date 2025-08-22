@@ -8,41 +8,35 @@ exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || "{}");
 
-    if (!body.orejaIzquierda && !body.orejaDerecha) {
+    if (!body.imagen || !body.oreja) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "No se envió ninguna imagen" }),
+        body: JSON.stringify({ error: "No se envió ninguna imagen o no se indicó la oreja" }),
       };
     }
 
-    const images = [];
-    if (body.orejaIzquierda) {
-      images.push({ type: "image_url", image_url: `data:image/jpeg;base64,${body.orejaIzquierda}` });
-    }
-    if (body.orejaDerecha) {
-      images.push({ type: "image_url", image_url: `data:image/jpeg;base64,${body.orejaDerecha}` });
-    }
+    console.log(`📷 Procesando oreja ${body.oreja}...`);
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "Eres un experto en auriculoterapia y reflexología auricular.",
+          content: `Eres un experto en auriculoterapia y reflexología auricular. 
+          Analiza imágenes de orejas y genera una GUÍA APRECIATIVA, no un diagnóstico médico. 
+          Tu respuesta debe estar en español y estructurada en:
+
+          1. Observaciones generales sobre la oreja ${body.oreja}.
+          2. Posibles desequilibrios reflejados según los modelos reflexológicos.
+          3. Puntos auriculares recomendados para estimular y favorecer el equilibrio.
+          4. Nota final aclarando que no es un diagnóstico médico y que se recomienda 
+             acudir a un profesional de la salud para una valoración formal.`
         },
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: `Analiza las imágenes proporcionadas de las orejas. 
-                - Identifica posibles desequilibrios según modelos reflexológicos.
-                - Sugiere puntos reflexológicos en la oreja a estimular para mejorar el equilibrio.
-                - Explica diferencias si hay entre la oreja izquierda y la derecha.
-                Importante: esto no es un diagnóstico médico, solo una guía apreciativa. 
-                Recomienda visitar a un médico para valoración profesional.`,
-            },
-            ...images,
+            { type: "text", text: `Analiza la oreja ${body.oreja} y genera la guía reflexológica.` },
+            { type: "image_url", image_url: body.imagen },
           ],
         },
       ],
@@ -55,7 +49,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ guia }),
     };
   } catch (error) {
-    console.error("Error en diagnostico.js:", error);
+    console.error("❌ Error en diagnostico.js:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: "No se pudo obtener guía" }),
