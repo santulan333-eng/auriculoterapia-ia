@@ -36,7 +36,12 @@ exports.handler = async (event) => {
           role: "user",
           content: [
             { type: "text", text: `Analiza la oreja ${body.oreja} y genera la guía reflexológica.` },
-            { type: "image_url", image_url: body.imagen },
+            {
+              type: "image_url",
+              image_url: {
+                url: body.imagen, // 👈 CORREGIDO: ahora es un objeto { url: ... }
+              },
+            },
           ],
         },
       ],
