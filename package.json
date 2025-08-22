@@ -1,7 +1,9 @@
 {
-  "name": "mi-web-auriculoterapia",
+  "name": "auriculoterapia-ia",
   "version": "1.0.0",
+  "private": true,
   "dependencies": {
-    "openai": "^4.0.0"
+    "openai": "^4.0.0",
+    "pdf-lib": "^1.17.1"
   }
 }
