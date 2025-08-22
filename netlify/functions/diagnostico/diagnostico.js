@@ -28,7 +28,13 @@ exports.handler = async (event) => {
           role: "user",
           content: [
             { type: "text", text: "Analiza esta oreja y dame un diagnóstico de auriculoterapia." },
-            { type: "image_url", image_url: body.imagen },
+            {
+  type: "image_url",
+  image_url: {
+    url: body.imagen, // 👈 si ya incluye el "data:image/png;base64,"
+  },
+},
+,
           ],
         },
       ],
