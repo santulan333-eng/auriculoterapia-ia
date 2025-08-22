@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Diagnóstico de Auriculoterapia</title>
+  <title>Guía de Auriculoterapia</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -54,21 +54,17 @@
       font-size: 16px;
       color: #2c3e50;
     }
-    .error {
-      color: #e74c3c;
-      font-weight: bold;
-    }
   </style>
 </head>
 <body>
-  <h1>Diagnóstico de Auriculoterapia</h1>
+  <h1>Guía de Auriculoterapia</h1>
   <div class="container">
     <input type="file" id="fotoInput" accept="image/*" />
     <select id="accion">
-      <option value="diagnostico">Obtener diagnóstico</option>
+      <option value="diagnostico">Obtener guía apreciativa</option>
     </select>
     <button onclick="enviarFoto()">Enviar foto</button>
-    <div id="resultado">Aquí aparecerá el diagnóstico...</div>
+    <div id="resultado">Aquí aparecerá la guía...</div>
   </div>
 
   <script>
@@ -78,41 +74,4 @@
       const resultadoDiv = document.getElementById('resultado');
 
       if (fileInput.files.length === 0) {
-        resultadoDiv.innerText = "⚠️ Por favor selecciona una imagen primero.";
-        return;
-      }
-
-      const file = fileInput.files[0];
-      const reader = new FileReader();
-
-      reader.onloadend = async () => {
-        const base64Image = reader.result;
-
-        resultadoDiv.innerText = "⏳ Procesando la imagen...";
-
-        try {
-          const response = await fetch(`/.netlify/functions/${accion}`, {
-            method: "POST",
-            body: JSON.stringify({ imagen: base64Image }),
-          });
-
-          const data = await response.json();
-
-          if (data.diagnostico) {
-            resultadoDiv.innerText = "✅ Diagnóstico recibido:\n\n" + data.diagnostico;
-          } else {
-            resultadoDiv.innerHTML = 
-              `<span class="error">⚠️ Error:</span> ${data.error || "No se obtuvo diagnóstico."}\n\n` +
-              (data.detalle ? `🔎 Detalle: ${data.detalle}` : "");
-          }
-        } catch (error) {
-          console.error(error);
-          resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
-        }
-      };
-
-      reader.readAsDataURL(file);
-    }
-  </script>
-</body>
-</html>
+        resultadoDi
