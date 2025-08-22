@@ -11,22 +11,19 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
       padding: 20px;
     }
-    h1 {
-      color: #2c3e50;
-    }
+    h1 { color: #2c3e50; }
     .container {
       background: white;
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       width: 100%;
-      max-width: 600px;
+      max-width: 700px;
       text-align: center;
     }
-    input, select, button {
+    input, button {
       margin: 10px 0;
       padding: 10px;
       width: 100%;
@@ -39,11 +36,8 @@
       color: white;
       border: none;
       cursor: pointer;
-      transition: background 0.3s;
     }
-    button:hover {
-      background: #2980b9;
-    }
+    button:hover { background: #2980b9; }
     #resultado {
       margin-top: 20px;
       padding: 15px;
@@ -54,58 +48,105 @@
       font-size: 16px;
       color: #2c3e50;
     }
+    #descargar {
+      display: none;
+      margin-top: 15px;
+      background: #2ecc71;
+    }
+    #descargar:hover {
+      background: #27ae60;
+    }
   </style>
 </head>
 <body>
   <h1>Guía de Auriculoterapia</h1>
   <div class="container">
-    <input type="file" id="fotoInput" accept="image/*" />
-    <button onclick="enviarFoto()">Enviar foto</button>
+    <label>Sube foto de la oreja izquierda:</label>
+    <input type="file" id="orejaIzquierda" accept="image/*" />
+
+    <label>Sube foto de la oreja derecha:</label>
+    <input type="file" id="orejaDerecha" accept="image/*" />
+
+    <button onclick="enviarFotos()">Analizar orejas</button>
+
     <div id="resultado">Aquí aparecerá la guía...</div>
+
+    <button id="descargar" onclick="descargarPDF()">📄 Descargar guía en PDF</button>
   </div>
 
-  <script>
-    async function enviarFoto() {
-      const fileInput = document.getElementById('fotoInput');
-      const resultadoDiv = document.getElementById('resultado');
+  <!-- Librería para generar PDF en cliente -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-      if (fileInput.files.length === 0) {
-        resultadoDiv.innerText = "⚠️ Por favor selecciona una imagen primero.";
+  <script>
+    let ultimaGuia = "";
+
+    async function enviarFotos() {
+      const izqInput = document.getElementById("orejaIzquierda");
+      const derInput = document.getElementById("orejaDerecha");
+      const resultadoDiv = document.getElementById("resultado");
+      const botonDescargar = document.getElementById("descargar");
+
+      if (izqInput.files.length === 0 && derInput.files.length === 0) {
+        resultadoDiv.innerText = "⚠️ Por favor selecciona al menos una imagen.";
         return;
       }
 
-      const file = fileInput.files[0];
-      const reader = new FileReader();
+      resultadoDiv.innerText = "⏳ Procesando imágenes...";
+      botonDescargar.style.display = "none";
 
-      reader.onloadend = async () => {
-        // 🔹 solo el base64 (quitamos el encabezado "data:image/jpeg;base64,")
-        const base64Image = reader.result.split(",")[1]; 
-
-        resultadoDiv.innerText = "⏳ Procesando la imagen...";
-
-        try {
-          const response = await fetch(`/.netlify/functions/diagnostico`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ imagen: base64Image }),
-          });
-
-          const data = await response.json();
-
-          if (data.guia) {
-            resultadoDiv.innerText = "✅ Guía recibida:\n\n" + data.guia;
-          } else {
-            resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se obtuvo guía.");
-          }
-        } catch (error) {
-          console.error(error);
-          resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
-        }
+      const leerArchivo = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result.split(",")[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
       };
 
-      reader.readAsDataURL(file);
+      try {
+        const orejaIzq = izqInput.files.length > 0 ? await leerArchivo(izqInput.files[0]) : null;
+        const orejaDer = derInput.files.length > 0 ? await leerArchivo(derInput.files[0]) : null;
+
+        const response = await fetch("/.netlify/functions/diagnostico", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orejaIzquierda: orejaIzq, orejaDerecha: orejaDer }),
+        });
+
+        const data = await response.json();
+
+        if (data.guia) {
+          ultimaGuia = data.guia;
+          resultadoDiv.innerText = "✅ Guía recibida:\n\n" + ultimaGuia;
+          botonDescargar.style.display = "inline-block";
+        } else {
+          resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se pudo obtener la guía.");
+        }
+      } catch (err) {
+        console.error(err);
+        resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
+      }
+    }
+
+    function descargarPDF() {
+      if (!ultimaGuia) return;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const margen = 10;
+      const ancho = 180;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(14);
+      doc.text("Guía de Auriculoterapia", margen, 20);
+
+      doc.setFontSize(11);
+      let texto = ultimaGuia + "\n\n⚠️ Nota: Esta guía es orientativa, no sustituye una valoración médica.";
+      doc.text(texto, margen, 30, { maxWidth: ancho });
+
+      doc.save("guia_auriculoterapia.pdf");
     }
   </script>
 </body>
