@@ -1,53 +1,71 @@
-// netlify/functions/diagnostico.js
+// netlify/functions/diagnostico/diagnostico.js
 const OpenAI = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// 🔹 Función auxiliar: analiza una sola oreja
+async function analizarOreja(imagenBase64, lado) {
+  const prompt = `
+Eres un experto en auriculoterapia.
+Analiza la imagen de la oreja (${lado}).
+Da SOLO un resumen breve y claro en máximo 5 frases.
+Incluye:
+- puntos auriculares relevantes,
+- cambios de color/forma visibles,
+- posibles disfunciones principales.
+Evita textos largos.
+`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini", // modelo económico
+    messages: [
+      { role: "system", content: "Eres un asistente experto en auriculoterapia." },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          {
+            type: "image_url",
+            image_url: {
+              url: imagenBase64,
+            },
+          },
+        ],
+      },
+    ],
+    max_tokens: 400, // 👈 evita respuestas largas que agotan el límite
+  });
+
+  return completion.choices[0].message.content.trim();
+}
 
 exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || "{}");
     const { orejaIzquierda, orejaDerecha } = body;
 
-    if (!orejaIzquierda && !orejaDerecha) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "No se envió ninguna imagen" }),
-      };
+    let guia = { izquierda: "", derecha: "" };
+
+    // ⚡ Analiza solo si hay imagen
+    if (orejaIzquierda) {
+      guia.izquierda = await analizarOreja(orejaIzquierda, "izquierda");
     }
 
-    const analizar = async (base64, lado) => {
-      if (!base64) return null;
-      const promptSistema = `Eres un experto en auriculoterapia y reflexología auricular.
-Devuelve un informe claro y estructurado en 4 secciones:
-1) OBSERVACIONES VISUALES: coloraciones, textura, venas, puntos rojos/blancos, inflamaciones, hundimientos, marcas, piel seca/grasa, simetría del pabellón.
-2) DISFUNCIONES ANTIGUAS (HUELLAS): signos que sugieren desequilibrios pasados.
-3) DISFUNCIONES ACTUALES: signos predominantes que sugieren desequilibrios activos.
-4) PUNTOS A ESTIMULAR: lista de puntos auriculares concretos (ej.: Shen Men, Simpático, Hígado, Riñón, Estómago, Columna, Cadera, Tórax, Ansiedad/Insomnio, etc.), justificando cada sugerencia en 1 línea.
-Al final añade: "Esta guía es orientativa. No reemplaza diagnóstico médico."`;
+    if (orejaDerecha) {
+      guia.derecha = await analizarOreja(orejaDerecha, "derecha");
+    }
 
-      const res = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: promptSistema },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `Analiza detalladamente la oreja ${lado}.` },
-              { type: "image_url", image_url: { url: base64 } },
-            ],
-          },
-        ],
-      });
-      return res.choices?.[0]?.message?.content || null;
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ guia }),
     };
-
-    const guia = {
-      izquierda: await analizar(orejaIzquierda, "izquierda"),
-      derecha: await analizar(orejaDerecha, "derecha"),
+  } catch (error) {
+    console.error("❌ Error en diagnostico.js:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "No se pudo generar el diagnóstico" }),
     };
-
-    return { statusCode: 200, body: JSON.stringify({ guia }) };
-  } catch (err) {
-    console.error("❌ Error en diagnostico.js:", err);
-    return { statusCode: 500, body: JSON.stringify({ error: "No se pudo obtener la guía" }) };
   }
 };
