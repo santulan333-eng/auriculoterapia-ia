@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Guía de Auriculoterapia</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -12,6 +11,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: flex-start;
       padding: 20px;
     }
     h1 {
@@ -23,10 +23,10 @@
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       width: 100%;
-      max-width: 650px;
+      max-width: 600px;
       text-align: center;
     }
-    input, button {
+    input, select, button {
       margin: 10px 0;
       padding: 10px;
       width: 100%;
@@ -54,139 +54,58 @@
       font-size: 16px;
       color: #2c3e50;
     }
-    #descargar {
-      display: none;
-      background: #27ae60;
-    }
-    #descargar:hover {
-      background: #1e8449;
-    }
   </style>
 </head>
 <body>
   <h1>Guía de Auriculoterapia</h1>
   <div class="container">
-    <label>📷 Subir oreja izquierda:</label>
-    <input type="file" id="orejaIzquierda" accept="image/*" />
-
-    <label>📷 Subir oreja derecha:</label>
-    <input type="file" id="orejaDerecha" accept="image/*" />
-
-    <button onclick="enviarFotos()">Enviar imágenes</button>
-    <button id="descargar" onclick="descargarPDF()">📄 Descargar PDF</button>
-
-    <div id="resultado">Aquí aparecerá la guía reflexológica...</div>
+    <input type="file" id="fotoInput" accept="image/*" />
+    <button onclick="enviarFoto()">Enviar foto</button>
+    <div id="resultado">Aquí aparecerá la guía...</div>
   </div>
 
   <script>
-    let ultimaGuia = "";
-    let ultimaIzquierda = null;
-    let ultimaDerecha = null;
+    async function enviarFoto() {
+      const fileInput = document.getElementById('fotoInput');
+      const resultadoDiv = document.getElementById('resultado');
 
-    async function enviarFotos() {
-      const izquierdaInput = document.getElementById("orejaIzquierda");
-      const derechaInput = document.getElementById("orejaDerecha");
-      const resultadoDiv = document.getElementById("resultado");
-      const btnDescargar = document.getElementById("descargar");
-
-      if (izquierdaInput.files.length === 0 && derechaInput.files.length === 0) {
-        resultadoDiv.innerText = "⚠️ Por favor selecciona al menos una imagen (izquierda o derecha).";
+      if (fileInput.files.length === 0) {
+        resultadoDiv.innerText = "⚠️ Por favor selecciona una imagen primero.";
         return;
       }
 
-      const convertirBase64 = (file) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = (error) => reject(error);
-        });
+      const file = fileInput.files[0];
+      const reader = new FileReader();
 
-      ultimaIzquierda = izquierdaInput.files.length > 0 
-        ? await convertirBase64(izquierdaInput.files[0]) 
-        : null;
+      reader.onloadend = async () => {
+        // 🔹 solo el base64 (quitamos el encabezado "data:image/jpeg;base64,")
+        const base64Image = reader.result.split(",")[1]; 
 
-      ultimaDerecha = derechaInput.files.length > 0 
-        ? await convertirBase64(derechaInput.files[0]) 
-        : null;
+        resultadoDiv.innerText = "⏳ Procesando la imagen...";
 
-      resultadoDiv.innerText = "⏳ Procesando imágenes...";
-      btnDescargar.style.display = "none";
+        try {
+          const response = await fetch(`/.netlify/functions/diagnostico`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ imagen: base64Image }),
+          });
 
-      try {
-        const response = await fetch("/.netlify/functions/diagnostico", {
-          method: "POST",
-          body: JSON.stringify({ orejaIzquierda: ultimaIzquierda, orejaDerecha: ultimaDerecha }),
-        });
+          const data = await response.json();
 
-        const data = await response.json();
-
-        if (data.guia) {
-          ultimaGuia = data.guia;
-          resultadoDiv.innerText = "✅ Guía recibida:\n\n" + data.guia;
-          btnDescargar.style.display = "inline-block";
-        } else {
-          resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se obtuvo guía.");
+          if (data.guia) {
+            resultadoDiv.innerText = "✅ Guía recibida:\n\n" + data.guia;
+          } else {
+            resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se obtuvo guía.");
+          }
+        } catch (error) {
+          console.error(error);
+          resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
         }
-      } catch (error) {
-        console.error(error);
-        resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
-      }
-    }
+      };
 
-    function descargarPDF() {
-      if (!ultimaGuia) return;
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      // === Portada ===
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(22);
-      doc.text("Informe Reflexológico de Auriculoterapia", 105, 60, { align: "center" });
-
-      doc.setFont("Helvetica", "normal");
-      doc.setFontSize(14);
-      const fecha = new Date().toLocaleDateString("es-ES", {
-        year: "numeric", month: "long", day: "numeric"
-      });
-      doc.text(`Generado el: ${fecha}`, 105, 80, { align: "center" });
-
-      doc.setFontSize(12);
-      doc.text("Este documento es una guía apreciativa basada en los modelos reflexológicos de la auriculoterapia.\n\n⚠️ No sustituye la valoración médica.", 105, 110, { align: "center", maxWidth: 180 });
-
-      doc.addPage();
-
-      // === Sección de análisis ===
-      doc.setFont("Helvetica", "bold");
-      doc.setFontSize(16);
-      doc.text("Guía Reflexológica:", 10, 20);
-
-      doc.setFont("Helvetica", "normal");
-      doc.setFontSize(12);
-      let texto = ultimaGuia + "\n\n⚠️ Esta guía es orientativa, no sustituye la valoración de un médico especialista.";
-      let lineas = doc.splitTextToSize(texto, 180);
-      doc.text(lineas, 10, 30);
-
-      // === Agregar imágenes ===
-      if (ultimaIzquierda) {
-        doc.addPage();
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("📷 Oreja Izquierda", 10, 20);
-        doc.addImage(ultimaIzquierda, "JPEG", 10, 30, 180, 130);
-      }
-
-      if (ultimaDerecha) {
-        doc.addPage();
-        doc.setFont("Helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("📷 Oreja Derecha", 10, 20);
-        doc.addImage(ultimaDerecha, "JPEG", 10, 30, 180, 130);
-      }
-
-      // Guardar PDF
-      doc.save("informe_auriculoterapia.pdf");
+      reader.readAsDataURL(file);
     }
   </script>
 </body>
