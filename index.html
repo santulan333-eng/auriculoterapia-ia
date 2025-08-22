@@ -27,7 +27,7 @@
         document.getElementById("resultado").textContent = "Analizando...";
 
         try {
-          const resp = await fetch("/.netlify/functions/diagnostico", {
+          const resp = await fetch("/.netlify/functions/testimagen", {
             method: "POST",
             headers: {
               "Content-Type": "application/json"
