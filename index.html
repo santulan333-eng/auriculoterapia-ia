@@ -1,92 +1,113 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Auriculoterapia MTC</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auriculoterapia IA</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .preview { max-width: 200px; margin: 10px; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .btn { background: #0066cc; color: white; padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; }
+    .btn:hover { background: #004d99; }
+    textarea { width: 100%; height: 100px; margin-top: 10px; }
+    img { max-width: 150px; margin: 10px; border-radius: 8px; }
   </style>
 </head>
 <body>
-  <h1>Guía de Auriculoterapia</h1>
+  <h1>Analizador de Orejas con IA</h1>
 
-  <label>Oreja izquierda:</label>
-  <input type="file" id="orejaIzquierda" accept="image/*"><br><br>
+  <p>Sube las fotos de las orejas para generar el informe.</p>
 
-  <label>Oreja derecha:</label>
-  <input type="file" id="orejaDerecha" accept="image/*"><br><br>
+  <label>Oreja Izquierda:</label>
+  <input type="file" id="orejaIzquierdaInput" accept="image/*"/><br/>
+  <img id="orejaIzquierdaPreview" />
 
-  <button id="analizarBtn">Obtener Guía</button>
-  <p id="estado"></p>
-  <div id="resultado"></div>
+  <label>Oreja Derecha:</label>
+  <input type="file" id="orejaDerechaInput" accept="image/*"/><br/>
+  <img id="orejaDerechaPreview" />
+
+  <button class="btn" onclick="analizar()">Analizar</button>
+  <button class="btn" onclick="descargarPDF()">Descargar PDF</button>
+
+  <h2>Resultados</h2>
+  <textarea id="resultado" readonly></textarea>
 
   <script>
-    const analizarBtn = document.getElementById("analizarBtn");
-    const estado = document.getElementById("estado");
-    const resultado = document.getElementById("resultado");
+    let orejaIzquierdaBase64 = "";
+    let orejaDerechaBase64 = "";
+    let guia = { izquierda: "", derecha: "" };
 
-    function toBase64(file) {
-      return new Promise((resolve, reject) => {
+    // Previsualización de imágenes
+    document.getElementById("orejaIzquierdaInput").addEventListener("change", function(e){
+      const file = e.target.files[0];
+      if(file) {
         const reader = new FileReader();
+        reader.onload = function(evt){
+          orejaIzquierdaBase64 = evt.target.result;
+          document.getElementById("orejaIzquierdaPreview").src = evt.target.result;
+        }
         reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-      });
-    }
-
-    analizarBtn.addEventListener("click", async () => {
-      try {
-        estado.textContent = "⏳ Analizando...";
-        resultado.innerHTML = "";
-
-        const izquierdaFile = document.getElementById("orejaIzquierda").files[0];
-        const derechaFile = document.getElementById("orejaDerecha").files[0];
-
-        const orejaIzquierda = izquierdaFile ? await toBase64(izquierdaFile) : null;
-        const orejaDerecha = derechaFile ? await toBase64(derechaFile) : null;
-
-        // Paso 1: pedir análisis
-        const res = await fetch("/.netlify/functions/diagnostico", {
-          method: "POST",
-          body: JSON.stringify({ orejaIzquierda, orejaDerecha }),
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        estado.textContent = "✅ Guía recibida";
-
-        resultado.innerHTML = `
-          <h2>Resultado</h2>
-          <h3>Oreja izquierda</h3>
-          <p>${data.guia.izquierda || "No analizada"}</p>
-          <h3>Oreja derecha</h3>
-          <p>${data.guia.derecha || "No analizada"}</p>
-          <button id="descargarPDF">Descargar PDF</button>
-        `;
-
-        document.getElementById("descargarPDF").addEventListener("click", async () => {
-          const pdfRes = await fetch("/.netlify/functions/pdf", {
-            method: "POST",
-            body: JSON.stringify({
-              orejaIzquierda,
-              orejaDerecha,
-              guia: data.guia,
-            }),
-          });
-
-          const pdfBlob = await pdfRes.blob();
-          const url = URL.createObjectURL(pdfBlob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "guia-auriculoterapia.pdf";
-          a.click();
-        });
-      } catch (err) {
-        estado.textContent = "⚠️ Error: " + err.message;
       }
     });
+
+    document.getElementById("orejaDerechaInput").addEventListener("change", function(e){
+      const file = e.target.files[0];
+      if(file) {
+        const reader = new FileReader();
+        reader.onload = function(evt){
+          orejaDerechaBase64 = evt.target.result;
+          document.getElementById("orejaDerechaPreview").src = evt.target.result;
+        }
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Llamada al análisis
+    async function analizar() {
+      document.getElementById("resultado").value = "Procesando con IA...";
+      try {
+        const res = await fetch("/.netlify/functions/diagnostico/diagnostico", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orejaIzquierda: orejaIzquierdaBase64,
+            orejaDerecha: orejaDerechaBase64
+          })
+        });
+        const data = await res.json();
+        guia = data.guia || { izquierda: "", derecha: "" };
+        document.getElementById("resultado").value = `IZQUIERDA:\n${guia.izquierda}\n\nDERECHA:\n${guia.derecha}`;
+      } catch (err) {
+        console.error(err);
+        document.getElementById("resultado").value = "❌ Error al procesar el análisis";
+      }
+    }
+
+    // Llamada para generar PDF
+    async function descargarPDF() {
+      try {
+        const res = await fetch("/.netlify/functions/pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            guia,
+            orejaIzquierda: orejaIzquierdaBase64,
+            orejaDerecha: orejaDerechaBase64
+          })
+        });
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "auriculoterapia.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+        alert("❌ Error al generar el PDF");
+      }
+    }
   </script>
 </body>
 </html>
