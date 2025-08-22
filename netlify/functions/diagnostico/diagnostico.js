@@ -7,8 +7,8 @@ const client = new OpenAI({
 exports.handler = async (event) => {
   try {
     console.log("Evento recibido:", event.body);
-
     const body = JSON.parse(event.body || "{}");
+
     if (!body.imagen) {
       return {
         statusCode: 400,
@@ -29,7 +29,7 @@ exports.handler = async (event) => {
           role: "user",
           content: [
             { type: "text", text: "Analiza esta oreja y dame un diagnóstico de auriculoterapia." },
-            { type: "image_url", image_url: body.imagen },
+            { type: "image_url", image_url: { url: body.imagen } }, // 👈 importante: en objeto
           ],
         },
       ],
@@ -45,12 +45,11 @@ exports.handler = async (event) => {
     };
   } catch (error) {
     console.error("Error en diagnostico.js:", error);
-
     return {
       statusCode: 500,
       body: JSON.stringify({
         error: "Fallo en OpenAI",
-        detalle: error.message || error.toString(),
+        detalle: error.message || "Error desconocido",
       }),
     };
   }
