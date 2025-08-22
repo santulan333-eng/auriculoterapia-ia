@@ -6,9 +6,7 @@ const client = new OpenAI({
 
 exports.handler = async (event) => {
   try {
-    console.log("Evento recibido:", event.body);
     const body = JSON.parse(event.body || "{}");
-
     if (!body.imagen) {
       return {
         statusCode: 400,
@@ -16,31 +14,28 @@ exports.handler = async (event) => {
       };
     }
 
-    console.log("Analizando imagen con OpenAI...");
-
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini", // modelo con visión
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `Eres un experto en auriculoterapia y reflexología auricular. 
-          Analizas imágenes de orejas y das una guía apreciativa de la salud de la persona. 
-          Además, sugieres qué puntos auriculares podrían estimularse (por ejemplo: Shen Men, Riñón, Hígado, Estómago, Pulmón, etc.) 
-          para ayudar a recuperar el equilibrio energético. 
-          No des diagnósticos médicos, solo una guía orientativa. 
-          Finaliza siempre con una advertencia clara de que esta información es educativa y que se recomienda acudir a un médico para una valoración profesional.`,
+          content: `Eres un experto en auriculoterapia y reflexología. 
+          Observa imágenes de orejas y ofrece una guía apreciativa basada en modelos reflexológicos.
+          La guía debe incluir:
+          1. Observaciones generales de la oreja.
+          2. Posibles desequilibrios reflejados.
+          3. Sugerencias de puntos auriculares a estimular para promover el equilibrio.
+          4. Una advertencia clara al final: "⚠️ Esta guía es orientativa y no reemplaza la valoración médica profesional".`
         },
         {
           role: "user",
           content: [
-            { type: "text", text: "Analiza esta oreja y dame una guía apreciativa de auriculoterapia con sugerencias de puntos a estimular." },
+            { type: "text", text: "Analiza esta oreja y genera la guía reflexológica solicitada." },
             { type: "image_url", image_url: body.imagen },
           ],
         },
       ],
     });
-
-    console.log("Respuesta completa de OpenAI:", JSON.stringify(completion, null, 2));
 
     const guia = completion.choices[0].message.content;
 
@@ -52,7 +47,7 @@ exports.handler = async (event) => {
     console.error("Error en diagnostico.js:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "No se pudo obtener guía" }),
+      body: JSON.stringify({ error: "No se pudo obtener guia" }),
     };
   }
 };
