@@ -49,10 +49,19 @@
       padding: 15px;
       background: #ecf0f1;
       border-radius: 8px;
-      white-space: pre-wrap;
       text-align: left;
       font-size: 16px;
       color: #2c3e50;
+    }
+    #resultado ul {
+      margin-top: 10px;
+      padding-left: 20px;
+    }
+    .advertencia {
+      margin-top: 15px;
+      font-size: 14px;
+      font-style: italic;
+      color: #8e44ad;
     }
   </style>
 </head>
@@ -60,18 +69,64 @@
   <h1>Guía de Auriculoterapia</h1>
   <div class="container">
     <input type="file" id="fotoInput" accept="image/*" />
-    <select id="accion">
-      <option value="diagnostico">Obtener guía apreciativa</option>
-    </select>
-    <button onclick="enviarFoto()">Enviar foto</button>
+    <button onclick="enviarFoto()">Analizar oreja</button>
     <div id="resultado">Aquí aparecerá la guía...</div>
   </div>
 
   <script>
     async function enviarFoto() {
       const fileInput = document.getElementById('fotoInput');
-      const accion = document.getElementById('accion').value;
       const resultadoDiv = document.getElementById('resultado');
 
       if (fileInput.files.length === 0) {
-        resultadoDi
+        resultadoDiv.innerText = "⚠️ Por favor selecciona una imagen primero.";
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onloadend = async () => {
+        const base64Image = reader.result;
+
+        resultadoDiv.innerText = "⏳ Procesando la imagen...";
+
+        try {
+          const response = await fetch("/.netlify/functions/diagnostico", {
+            method: "POST",
+            body: JSON.stringify({ imagen: base64Image }),
+          });
+
+          const data = await response.json();
+
+          if (data.guia) {
+            // Dividimos la respuesta en secciones
+            const partes = data.guia.split("👉");
+            let html = `<p>${partes[0]}</p>`;
+
+            if (partes[1]) {
+              const puntos = partes[1].split(",");
+              html += "<ul>";
+              puntos.forEach(p => {
+                html += `<li>${p.trim()}</li>`;
+              });
+              html += "</ul>";
+            }
+
+            html += `<p class="advertencia">⚠️ Nota: Esta guía es solo orientativa y no reemplaza la valoración médica profesional.</p>`;
+
+            resultadoDiv.innerHTML = html;
+          } else {
+            resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se obtuvo guía.");
+          }
+        } catch (error) {
+          console.error(error);
+          resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
+        }
+      };
+
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>
