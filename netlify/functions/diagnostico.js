@@ -1,3 +1,4 @@
+// Función simple para probar que Netlify la detecta
 export async function handler(event, context) {
   return {
     statusCode: 200,
