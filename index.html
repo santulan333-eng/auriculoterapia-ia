@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Auriculoterapia IA</title>
+</head>
+<body>
+  <h1>Sube tu foto de oreja</h1>
+  <form id="uploadForm">
+    <input type="file" id="foto" accept="image/*">
+    <button type="submit">Enviar foto</button>
+  </form>
+  <p id="resultado"></p>
+  <script>
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      document.getElementById("resultado").textContent = "Procesando...";
+      const response = await fetch("/.netlify/functions/diagnostico");
+      const data = await response.json();
+      document.getElementById("resultado").textContent = JSON.stringify(data);
+    });
+  </script>
+</body>
+</html>
