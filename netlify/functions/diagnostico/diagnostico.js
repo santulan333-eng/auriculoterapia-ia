@@ -6,7 +6,6 @@ const client = new OpenAI({
 
 exports.handler = async (event) => {
   try {
-    console.log("Evento recibido:", event.body);
     const body = JSON.parse(event.body || "{}");
 
     if (!body.imagen) {
@@ -16,26 +15,27 @@ exports.handler = async (event) => {
       };
     }
 
-    console.log("Llamando a OpenAI con imagen...");
-
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini", // modelo con visión
+      model: "gpt-4o-mini", // Modelo con visión
       messages: [
         {
           role: "system",
-          content: "Eres un experto en auriculoterapia. Analiza imágenes de orejas y da un diagnóstico breve.",
+          content: `Eres un asistente especializado en auriculoterapia. 
+          Observa cuidadosamente la imagen de la oreja y describe posibles señales, zonas de tensión o desequilibrio 
+          según la práctica de auriculoterapia. 
+          Ofrece tu análisis solo con fines educativos y de bienestar general, 
+          nunca como diagnóstico médico. 
+          Sé claro y breve en tus respuestas.`,
         },
         {
           role: "user",
           content: [
-            { type: "text", text: "Analiza esta oreja y dame un diagnóstico de auriculoterapia." },
-            { type: "image_url", image_url: { url: body.imagen } }, // 👈 importante: en objeto
+            { type: "text", text: "Analiza esta oreja y describe lo que observas según la auriculoterapia." },
+            { type: "image_url", image_url: body.imagen },
           ],
         },
       ],
     });
-
-    console.log("Respuesta completa de OpenAI:", JSON.stringify(completion, null, 2));
 
     const diagnostico = completion.choices[0].message.content;
 
@@ -47,10 +47,7 @@ exports.handler = async (event) => {
     console.error("Error en diagnostico.js:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        error: "Fallo en OpenAI",
-        detalle: error.message || "Error desconocido",
-      }),
+      body: JSON.stringify({ error: "No se pudo obtener diagnóstico" }),
     };
   }
 };
