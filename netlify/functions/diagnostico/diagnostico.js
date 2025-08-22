@@ -6,63 +6,58 @@ const client = new OpenAI({
 
 exports.handler = async (event) => {
   try {
-    const body = JSON.parse(event.body || "{}");
+    console.log("Evento recibido:", event.body);
 
-    if (!body.orejaIzquierda && !body.orejaDerecha) {
+    const body = JSON.parse(event.body || "{}");
+    const { orejaIzquierda, orejaDerecha } = body;
+
+    if (!orejaIzquierda && !orejaDerecha) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "No se enviaron imágenes" }),
+        body: JSON.stringify({ error: "No se envió ninguna imagen" }),
       };
     }
 
-    let mensajes = [
-      {
-        role: "system",
-        content:
-          "Eres un experto en reflexología auricular. Analiza imágenes de orejas y genera una guía apreciativa basada en modelos reflexológicos de la auriculoterapia. Incluye posibles desequilibrios que pueden observarse, sugerencias de puntos a estimular en la oreja, y aclara al final que no es un diagnóstico médico sino una guía orientativa.",
-      },
+    // Construimos el contenido del mensaje dinámicamente
+    const contenidoUsuario = [
+      { type: "text", text: "Analiza las orejas proporcionadas y genera una guía reflexológica de auriculoterapia." }
     ];
 
-    if (body.orejaIzquierda) {
-      mensajes.push({
-        role: "user",
-        content: [
-          { type: "text", text: "Analiza esta imagen de la oreja izquierda y brinda una guía reflexológica breve y clara." },
-          { type: "image_url", image_url: { url: body.orejaIzquierda } },
-        ],
-      });
+    if (orejaIzquierda) {
+      contenidoUsuario.push({ type: "text", text: "📷 Esta es la oreja izquierda." });
+      contenidoUsuario.push({ type: "image_url", image_url: orejaIzquierda });
     }
 
-    if (body.orejaDerecha) {
-      mensajes.push({
-        role: "user",
-        content: [
-          { type: "text", text: "Analiza esta imagen de la oreja derecha y brinda una guía reflexológica breve y clara." },
-          { type: "image_url", image_url: { url: body.orejaDerecha } },
-        ],
-      });
+    if (orejaDerecha) {
+      contenidoUsuario.push({ type: "text", text: "📷 Esta es la oreja derecha." });
+      contenidoUsuario.push({ type: "image_url", image_url: orejaDerecha });
     }
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: mensajes,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Eres un experto en auriculoterapia. Observa las imágenes de orejas y genera una guía apreciativa reflexológica. " +
+            "Incluye posibles áreas de desequilibrio, puntos reflexológicos sugeridos a estimular para restaurar el equilibrio, " +
+            "y recomendaciones generales de autocuidado. Finaliza aclarando que no es un diagnóstico médico y que se debe " +
+            "consultar con un profesional de salud.",
+        },
+        {
+          role: "user",
+          content: contenidoUsuario,
+        },
+      ],
     });
 
-    let guia = completion.choices[0].message.content;
+    console.log("Respuesta OpenAI:", JSON.stringify(completion, null, 2));
 
-    // Añadir títulos claros si se enviaron ambas orejas
-    let resultadoFinal = "";
-    if (body.orejaIzquierda && body.orejaDerecha) {
-      resultadoFinal = `🦻 **Oreja Izquierda**\n${guia}\n\n🦻 **Oreja Derecha**\n${guia}\n\n⚠️ Esta es una guía orientativa basada en reflexología auricular. No reemplaza la valoración médica.`;
-    } else if (body.orejaIzquierda) {
-      resultadoFinal = `🦻 **Oreja Izquierda**\n${guia}\n\n⚠️ Esta es una guía orientativa basada en reflexología auricular. No reemplaza la valoración médica.`;
-    } else if (body.orejaDerecha) {
-      resultadoFinal = `🦻 **Oreja Derecha**\n${guia}\n\n⚠️ Esta es una guía orientativa basada en reflexología auricular. No reemplaza la valoración médica.`;
-    }
+    const guia = completion.choices[0].message.content;
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ guia: resultadoFinal }),
+      body: JSON.stringify({ guia }),
     };
   } catch (error) {
     console.error("Error en diagnostico.js:", error);
