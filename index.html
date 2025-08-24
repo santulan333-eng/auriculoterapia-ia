@@ -1,31 +1,140 @@
-<script>
-async function enviarDiagnostico(base64Izq, base64Der) {
-  const resultado = document.getElementById("resultado");
-  resultado.innerHTML = "⌛ Procesando análisis...";
-
-  try {
-    const res = await fetch("/.netlify/functions/diagnostico", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orejaIzquierda: base64Izq,
-        orejaDerecha: base64Der,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (data.error) {
-      resultado.innerHTML = "⚠️ " + data.error;
-    } else {
-      resultado.innerHTML = `
-        <h3>✅ Resultado del análisis</h3>
-        <pre>${data.analisis}</pre>
-      `;
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guía de Auriculoterapia</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px;
     }
-  } catch (err) {
-    console.error(err);
-    resultado.innerHTML = "❌ Error al procesar el análisis";
-  }
-}
-</script>
+    h1 { color: #2c3e50; }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+      text-align: center;
+    }
+    input, button {
+      margin: 10px 0;
+      padding: 10px;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover { background: #2980b9; }
+    #resultado {
+      margin-top: 20px;
+      padding: 15px;
+      background: #ecf0f1;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      text-align: left;
+      font-size: 16px;
+      color: #2c3e50;
+    }
+  </style>
+</head>
+<body>
+  <h1>Guía de Auriculoterapia</h1>
+  <div class="container">
+    <label>Oreja Izquierda:</label>
+    <input type="file" id="fotoIzquierda" accept="image/*" capture="environment" />
+    
+    <label>Oreja Derecha:</label>
+    <input type="file" id="fotoDerecha" accept="image/*" capture="environment" />
+    
+    <button onclick="enviarFotos()">Enviar imágenes</button>
+    <div id="resultado">Aquí aparecerá la guía...</div>
+  </div>
+
+  <script>
+    function comprimirImagen(file, maxWidth = 600, quality = 0.7) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            let scale = Math.min(maxWidth / img.width, 1);
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(
+              blob => {
+                const reader2 = new FileReader();
+                reader2.onloadend = () => resolve(reader2.result);
+                reader2.readAsDataURL(blob);
+              },
+              "image/jpeg",
+              quality
+            );
+          };
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function enviarFotos() {
+      const fileIzq = document.getElementById("fotoIzquierda").files[0];
+      const fileDer = document.getElementById("fotoDerecha").files[0];
+      const resultadoDiv = document.getElementById("resultado");
+
+      if (!fileIzq && !fileDer) {
+        resultadoDiv.innerText = "⚠️ Por favor selecciona al menos una imagen.";
+        return;
+      }
+
+      resultadoDiv.innerText = "⏳ Procesando imágenes...";
+
+      try {
+        const izquierda = fileIzq ? await comprimirImagen(fileIzq) : null;
+        const derecha = fileDer ? await comprimirImagen(fileDer) : null;
+
+        const response = await fetch(`/.netlify/functions/diagnostico`, {
+          method: "POST",
+          body: JSON.stringify({ izquierda, derecha }),
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "guia-auriculoterapia.pdf";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          resultadoDiv.innerText = "✅ Guía generada y descargada.";
+        } else {
+          const data = await response.json();
+          resultadoDiv.innerText = "⚠️ Error: " + (data.error || "No se pudo obtener guía.");
+        }
+      } catch (error) {
+        console.error(error);
+        resultadoDiv.innerText = "⚠️ Error al conectar con el servidor.";
+      }
+    }
+  </script>
+</body>
+</html>
