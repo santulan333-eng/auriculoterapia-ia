@@ -1,129 +1,75 @@
-const OpenAI = require("openai");
-const PDFDocument = require("pdfkit");
-const getStream = require("get-stream");
+import OpenAI from "openai";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-function agregarImagenBase64(doc, base64, x, y, maxWidth = 250) {
-  try {
-    const data = base64.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(data, "base64");
-    doc.image(buffer, x, y, { fit: [maxWidth, 300], align: "center" });
-    doc.moveDown();
-  } catch (err) {
-    console.error("⚠️ Error al agregar imagen al PDF:", err.message);
+export async function handler(event) {
+  // Solo aceptar POST
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ error: "Método no permitido" }),
+    };
   }
-}
 
-exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || "{}");
-    const { izquierda, derecha } = body;
+    const { orejaIzquierda, orejaDerecha } = body;
 
-    if (!izquierda && !derecha) {
+    if (!orejaIzquierda || !orejaDerecha) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "No se envió ninguna imagen" }),
+        body: JSON.stringify({ error: "Faltan imágenes de las orejas" }),
       };
     }
 
-    const results = {};
+    // Prompt para el análisis detallado
+    const prompt = `
+Analiza ambas orejas según Medicina Tradicional China. 
+Debes:
+- Describir cada punto auricular visible.
+- Analizar textura, color, marcas y cambios de tono.
+- Diferenciar entre disfunciones pasadas (marcas, cicatrices, hundimientos) y actuales (inflamaciones, rojeces).
+- Resaltar órganos o sistemas afectados con explicación breve.
+- Dar recomendaciones de estilo de vida o cuidados.
+El resultado debe ser claro y ordenado para un informe clínico.
+    `;
 
-    // Analizar oreja izquierda
-    if (izquierda) {
-      const completion = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Eres un experto en auriculoterapia. Analiza la imagen de la oreja izquierda, da una guía apreciativa basada en los modelos reflexológicos. Sugiere puntos a estimular y finaliza aclarando que esto no es un diagnóstico médico, solo una guía.",
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Guíame con la oreja izquierda:" },
-              { type: "image_url", image_url: { url: izquierda } },
-            ],
-          },
-        ],
-      });
+    // Llamada a OpenAI Vision
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini", // modelo gratuito
+      messages: [
+        {
+          role: "system",
+          content: "Eres un experto en auriculoterapia y diagnóstico energético.",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: orejaIzquierda } },
+            { type: "image_url", image_url: { url: orejaDerecha } },
+          ],
+        },
+      ],
+      max_tokens: 800,
+    });
 
-      results.izquierda = completion.choices[0].message.content;
-    }
-
-    // Analizar oreja derecha
-    if (derecha) {
-      const completion = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Eres un experto en auriculoterapia. Analiza la imagen de la oreja derecha, da una guía apreciativa basada en los modelos reflexológicos. Sugiere puntos a estimular y finaliza aclarando que esto no es un diagnóstico médico, solo una guía.",
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Guíame con la oreja derecha:" },
-              { type: "image_url", image_url: { url: derecha } },
-            ],
-          },
-        ],
-      });
-
-      results.derecha = completion.choices[0].message.content;
-    }
-
-    // Generar PDF con ambas orejas e imágenes
-    const doc = new PDFDocument();
-    let buffers = [];
-    doc.on("data", buffers.push.bind(buffers));
-    doc.on("end", () => {});
-
-    doc.fontSize(20).text("Guía de Auriculoterapia", { align: "center" });
-    doc.moveDown();
-
-    if (results.izquierda) {
-      doc.fontSize(16).text("Oreja Izquierda", { underline: true });
-      doc.moveDown();
-      if (izquierda) {
-        agregarImagenBase64(doc, izquierda, 100, doc.y);
-        doc.moveDown(2);
-      }
-      doc.fontSize(12).text(results.izquierda, { align: "left" });
-      doc.addPage();
-    }
-
-    if (results.derecha) {
-      doc.fontSize(16).text("Oreja Derecha", { underline: true });
-      doc.moveDown();
-      if (derecha) {
-        agregarImagenBase64(doc, derecha, 100, doc.y);
-        doc.moveDown(2);
-      }
-      doc.fontSize(12).text(results.derecha, { align: "left" });
-    }
-
-    doc.end();
-    const pdfBuffer = await getStream.buffer(doc);
+    const analisisTexto = completion.choices[0].message.content;
 
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=guia-auriculoterapia.pdf",
-      },
-      body: pdfBuffer.toString("base64"),
-      isBase64Encoded: true,
+      body: JSON.stringify({ analisis: analisisTexto }),
     };
   } catch (error) {
     console.error("❌ Error en diagnostico.js:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "No se pudo obtener guía" }),
+      body: JSON.stringify({
+        error: "Error al procesar el análisis",
+        detalle: error.message,
+      }),
     };
   }
-};
+}
