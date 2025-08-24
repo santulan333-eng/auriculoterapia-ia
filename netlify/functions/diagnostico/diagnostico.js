@@ -1,53 +1,72 @@
-// netlify/functions/diagnostico.js
-const OpenAI = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import OpenAI from "openai";
 
-exports.handler = async (event) => {
+// Cliente de OpenAI
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+export async function handler(event) {
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ error: "Método no permitido" }),
+    };
+  }
+
   try {
-    const body = JSON.parse(event.body || "{}");
+    const body = JSON.parse(event.body);
     const { orejaIzquierda, orejaDerecha } = body;
 
-    if (!orejaIzquierda && !orejaDerecha) {
+    if (!orejaIzquierda || !orejaDerecha) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "No se envió ninguna imagen" }),
+        body: JSON.stringify({ error: "Faltan imágenes de las orejas" }),
       };
     }
 
-    const analizar = async (base64, lado) => {
-      if (!base64) return null;
-      const promptSistema = `Eres un experto en auriculoterapia y reflexología auricular.
-Devuelve un informe claro y estructurado en 4 secciones:
-1) OBSERVACIONES VISUALES: coloraciones, textura, venas, puntos rojos/blancos, inflamaciones, hundimientos, marcas, piel seca/grasa, simetría del pabellón.
-2) DISFUNCIONES ANTIGUAS (HUELLAS): signos que sugieren desequilibrios pasados.
-3) DISFUNCIONES ACTUALES: signos predominantes que sugieren desequilibrios activos.
-4) PUNTOS A ESTIMULAR: lista de puntos auriculares concretos (ej.: Shen Men, Simpático, Hígado, Riñón, Estómago, Columna, Cadera, Tórax, Ansiedad/Insomnio, etc.), justificando cada sugerencia en 1 línea.
-Al final añade: "Esta guía es orientativa. No reemplaza diagnóstico médico."`;
+    // 🔹 Prompt detallado para análisis
+    const prompt = `
+    Analiza las imágenes de ambas orejas según la Medicina Tradicional China.
+    Debes:
+    - Describir cada punto auricular visible.
+    - Analizar textura, color, marcas y cambios de tono.
+    - Diferenciar entre disfunciones pasadas (marcas, cicatrices, hundimientos) 
+      y actuales (cambios recientes, inflamaciones, rojeces).
+    - Resaltar órganos o sistemas afectados con explicación breve y clara.
+    - Dar recomendaciones generales de estilo de vida o cuidados.
+    Formato esperado: texto claro en español.
+    `;
 
-      const res = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: promptSistema },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `Analiza detalladamente la oreja ${lado}.` },
-              { type: "image_url", image_url: { url: base64 } },
-            ],
-          },
-        ],
-      });
-      return res.choices?.[0]?.message?.content || null;
+    // 🔹 Llamada a OpenAI Vision
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini", // ✅ gratis con tu cuenta free
+      messages: [
+        { role: "system", content: "Eres un experto en auriculoterapia y diagnóstico energético." },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: orejaIzquierda } },
+            { type: "image_url", image_url: { url: orejaDerecha } },
+          ],
+        },
+      ],
+      max_tokens: 800,
+    });
+
+    const analisisTexto = completion.choices[0].message.content;
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ analisis: analisisTexto }),
     };
 
-    const guia = {
-      izquierda: await analizar(orejaIzquierda, "izquierda"),
-      derecha: await analizar(orejaDerecha, "derecha"),
+  } catch (error) {
+    console.error("❌ Error en diagnostico.js:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: "Error al procesar el análisis",
+        detalle: error.message,
+      }),
     };
-
-    return { statusCode: 200, body: JSON.stringify({ guia }) };
-  } catch (err) {
-    console.error("❌ Error en diagnostico.js:", err);
-    return { statusCode: 500, body: JSON.stringify({ error: "No se pudo obtener la guía" }) };
   }
-};
+}
