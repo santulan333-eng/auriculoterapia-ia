@@ -1,7 +1,9 @@
 import OpenAI from "openai";
 
-// Cliente de OpenAI
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Cliente OpenAI
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export async function handler(event) {
   if (event.httpMethod !== "POST") {
@@ -22,24 +24,32 @@ export async function handler(event) {
       };
     }
 
-    // 🔹 Prompt detallado para análisis
+    // 🔹 Prompt más detallado
     const prompt = `
-    Analiza las imágenes de ambas orejas según la Medicina Tradicional China.
-    Debes:
-    - Describir cada punto auricular visible.
-    - Analizar textura, color, marcas y cambios de tono.
-    - Diferenciar entre disfunciones pasadas (marcas, cicatrices, hundimientos) 
-      y actuales (cambios recientes, inflamaciones, rojeces).
-    - Resaltar órganos o sistemas afectados con explicación breve y clara.
-    - Dar recomendaciones generales de estilo de vida o cuidados.
-    Formato esperado: texto claro en español.
+Analiza cuidadosamente las imágenes de la oreja izquierda y derecha según la Medicina Tradicional China (MTC).
+Instrucciones:
+1. Describe cada punto auricular visible.
+2. Analiza textura, color, marcas y cambios de tono.
+3. Diferencia entre disfunciones pasadas (cicatrices, hundimientos, manchas antiguas) y actuales (inflamaciones, rojeces, cambios recientes).
+4. Indica qué órganos o sistemas se ven más afectados y por qué.
+5. Da recomendaciones de estilo de vida y cuidados relacionados.
+
+Formato esperado:
+{
+  "Oreja Izquierda": { "observaciones": "...", "disfunciones_pasadas": "...", "disfunciones_actuales": "...", "recomendaciones": "..." },
+  "Oreja Derecha": { "observaciones": "...", "disfunciones_pasadas": "...", "disfunciones_actuales": "...", "recomendaciones": "..." },
+  "Resumen General": "..."
+}
     `;
 
-    // 🔹 Llamada a OpenAI Vision
+    // 🔹 Llamada a OpenAI con imágenes
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini", // ✅ gratis con tu cuenta free
+      model: "gpt-4o-mini", // ✅ gratis en la cuenta free
       messages: [
-        { role: "system", content: "Eres un experto en auriculoterapia y diagnóstico energético." },
+        {
+          role: "system",
+          content: "Eres un experto en auriculoterapia y diagnóstico energético.",
+        },
         {
           role: "user",
           content: [
@@ -58,7 +68,6 @@ export async function handler(event) {
       statusCode: 200,
       body: JSON.stringify({ analisis: analisisTexto }),
     };
-
   } catch (error) {
     console.error("❌ Error en diagnostico.js:", error);
     return {
