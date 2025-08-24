@@ -1,0 +1,10 @@
+{
+  "name": "auriculoterapia",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "netlify dev"
+  },
+  "dependencies": {
+    "openai": "^4.0.0"
+  }
+}
