@@ -1,76 +1,73 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Diagnóstico Auriculoterapia</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .resultado { 
-      margin-top: 20px; 
-      white-space: pre-wrap; 
-      border: 1px solid #ccc; 
-      padding: 15px; 
-      border-radius: 5px; 
-      background: #f9f9f9; 
-    }
-  </style>
 </head>
 <body>
   <h1>Diagnóstico de Auriculoterapia</h1>
-  <p>Sube las imágenes de ambas orejas para el análisis.</p>
 
   <form id="form">
-    <label>Oreja Izquierda: 
-      <input type="file" id="orejaIzquierda" accept="image/*" required>
-    </label><br><br>
+    <label for="orejaIzquierda">📷 Sube la oreja izquierda:</label>
+    <input type="file" id="orejaIzquierda" accept="image/*" required />
+    <br><br>
 
-    <label>Oreja Derecha: 
-      <input type="file" id="orejaDerecha" accept="image/*" required>
-    </label><br><br>
+    <label for="orejaDerecha">📷 Sube la oreja derecha:</label>
+    <input type="file" id="orejaDerecha" accept="image/*" required />
+    <br><br>
 
-    <button type="submit">🔍 Analizar</button>
+    <button type="submit">Enviar</button>
   </form>
 
-  <div class="resultado" id="resultado"></div>
+  <h2>Resultado:</h2>
+  <pre id="resultado"></pre>
 
   <script>
     document.getElementById("form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const resultadoDiv = document.getElementById("resultado");
-      resultadoDiv.textContent = "Procesando análisis... ⏳";
 
-      // Convierte las imágenes a Base64
-      async function toBase64(file) {
-        return new Promise((resolve, reject) => {
+      const orejaIzquierdaFile = document.getElementById("orejaIzquierda").files[0];
+      const orejaDerechaFile = document.getElementById("orejaDerecha").files[0];
+
+      if (!orejaIzquierdaFile || !orejaDerechaFile) {
+        alert("Debes subir ambas imágenes.");
+        return;
+      }
+
+      // Convertir imágenes a Base64 para enviarlas
+      const toBase64 = (file) =>
+        new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.readAsDataURL(file);
           reader.onload = () => resolve(reader.result);
-          reader.onerror = error => reject(error);
+          reader.onerror = (error) => reject(error);
         });
-      }
 
-      const orejaIzqFile = document.getElementById("orejaIzquierda").files[0];
-      const orejaDerFile = document.getElementById("orejaDerecha").files[0];
+      const urlIzquierda = await toBase64(orejaIzquierdaFile);
+      const urlDerecha = await toBase64(orejaDerechaFile);
 
-      const orejaIzquierda = await toBase64(orejaIzqFile);
-      const orejaDerecha = await toBase64(orejaDerFile);
-
+      // 🔹 Llamada a la función en Netlify
       try {
-        const resp = await fetch("/netlify/functions/diagnostico", {
+        const respuesta = await fetch("/.netlify/functions/diagnostico", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orejaIzquierda, orejaDerecha })
+          body: JSON.stringify({
+            orejaIzquierda: urlIzquierda,
+            orejaDerecha: urlDerecha,
+          }),
         });
 
-        const data = await resp.json();
+        const data = await respuesta.json();
 
         if (data.error) {
-          resultadoDiv.textContent = "❌ Error: " + data.error;
+          document.getElementById("resultado").textContent = "❌ Error: " + data.error;
         } else {
-          resultadoDiv.textContent = data.analisis;
+          document.getElementById("resultado").textContent = data.analisis;
         }
-      } catch (err) {
-        resultadoDiv.textContent = "⚠️ Error al conectar con el servidor.";
+      } catch (error) {
+        document.getElementById("resultado").textContent =
+          "⚠️ Error al conectar con el servidor: " + error.message;
       }
     });
   </script>
