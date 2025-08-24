@@ -5,7 +5,14 @@
   <title>Diagnóstico Auriculoterapia</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
-    .resultado { margin-top: 20px; white-space: pre-wrap; }
+    .resultado { 
+      margin-top: 20px; 
+      white-space: pre-wrap; 
+      border: 1px solid #ccc; 
+      padding: 15px; 
+      border-radius: 5px; 
+      background: #f9f9f9; 
+    }
   </style>
 </head>
 <body>
@@ -13,9 +20,15 @@
   <p>Sube las imágenes de ambas orejas para el análisis.</p>
 
   <form id="form">
-    <label>Oreja Izquierda: <input type="file" id="orejaIzquierda" accept="image/*" required></label><br><br>
-    <label>Oreja Derecha: <input type="file" id="orejaDerecha" accept="image/*" required></label><br><br>
-    <button type="submit">Analizar</button>
+    <label>Oreja Izquierda: 
+      <input type="file" id="orejaIzquierda" accept="image/*" required>
+    </label><br><br>
+
+    <label>Oreja Derecha: 
+      <input type="file" id="orejaDerecha" accept="image/*" required>
+    </label><br><br>
+
+    <button type="submit">🔍 Analizar</button>
   </form>
 
   <div class="resultado" id="resultado"></div>
@@ -23,5 +36,43 @@
   <script>
     document.getElementById("form").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const resultadoDiv = document.getElementById("resultado");
+      resultadoDiv.textContent = "Procesando análisis... ⏳";
 
-      const orejaIzquierda = document.get
+      // Convierte las imágenes a Base64
+      async function toBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = error => reject(error);
+        });
+      }
+
+      const orejaIzqFile = document.getElementById("orejaIzquierda").files[0];
+      const orejaDerFile = document.getElementById("orejaDerecha").files[0];
+
+      const orejaIzquierda = await toBase64(orejaIzqFile);
+      const orejaDerecha = await toBase64(orejaDerFile);
+
+      try {
+        const resp = await fetch("/.netlify/functions/diagnostico", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orejaIzquierda, orejaDerecha })
+        });
+
+        const data = await resp.json();
+
+        if (data.error) {
+          resultadoDiv.textContent = "❌ Error: " + data.error;
+        } else {
+          resultadoDiv.textContent = data.analisis;
+        }
+      } catch (err) {
+        resultadoDiv.textContent = "⚠️ Error al conectar con el servidor.";
+      }
+    });
+  </script>
+</body>
+</html>
