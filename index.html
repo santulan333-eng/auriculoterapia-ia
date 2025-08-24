@@ -1,82 +1,93 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Diagnóstico MTC</title>
-</head>
-<body>
-  <h1>Subir imágenes de orejas</h1>
+import OpenAI from "openai";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-  <form id="diagnosticoForm">
-    <label>Oreja Izquierda:</label>
-    <input type="file" id="orejaIzquierda" accept="image/*" required><br><br>
+// Cliente de OpenAI
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    <label>Oreja Derecha:</label>
-    <input type="file" id="orejaDerecha" accept="image/*" required><br><br>
+export async function handler(event) {
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, body: JSON.stringify({ error: "Método no permitido" }) };
+  }
 
-    <button type="submit">Enviar</button>
-  </form>
+  try {
+    const body = JSON.parse(event.body);
+    const { orejaIzquierda, orejaDerecha } = body;
 
-  <div id="resultado"></div>
-
-  <script>
-    // Convertir archivo a Base64
-    function toBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = (error) => reject(error);
-      });
+    if (!orejaIzquierda || !orejaDerecha) {
+      return { statusCode: 400, body: JSON.stringify({ error: "Faltan imágenes de las orejas" }) };
     }
 
-    document.getElementById("diagnosticoForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const resultado = document.getElementById("resultado");
-      resultado.innerHTML = "Procesando... ⏳";
+    // 🔹 Prompt detallado para análisis auriculoterapia
+    const prompt = `
+Analiza las imágenes de ambas orejas según la Medicina Tradicional China.
+Debes:
+- Describir cada punto auricular visible.
+- Analizar textura, color, marcas y cambios de tono.
+- Diferenciar entre disfunciones pasadas (marcas, cicatrices, hundimientos) y actuales (cambios recientes, inflamaciones, rojeces).
+- Resaltar órganos o sistemas afectados con explicación breve y clara.
+- Dar recomendaciones generales de estilo de vida o cuidados.
+Formato esperado: JSON con secciones claras.
+    `;
 
-      const orejaIzqFile = document.getElementById("orejaIzquierda").files[0];
-      const orejaDerFile = document.getElementById("orejaDerecha").files[0];
-
-      if (!orejaIzqFile || !orejaDerFile) {
-        alert("Por favor selecciona ambas imágenes.");
-        return;
-      }
-
-      try {
-        const orejaIzqBase64 = await toBase64(orejaIzqFile);
-        const orejaDerBase64 = await toBase64(orejaDerFile);
-
-        const response = await fetch("/.netlify/functions/diagnostico", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orejaIzquierda: orejaIzqBase64,
-            orejaDerecha: orejaDerBase64,
-          }),
-        });
-
-        let data;
-        try {
-          data = await response.json();
-        } catch (err) {
-          const text = await response.text();
-          console.error("Respuesta no es JSON:", text);
-          resultado.innerHTML = "❌ Error en el servidor: " + text;
-          return;
+    // 🔹 Llamada a OpenAI Vision
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini", // ✅ gratis con tu cuenta free
+      messages: [
+        { role: "system", content: "Eres un experto en auriculoterapia y diagnóstico energético." },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: orejaIzquierda } },
+            { type: "image_url", image_url: { url: orejaDerecha } }
+          ]
         }
-
-        if (data.error) {
-          resultado.innerHTML = "⚠️ " + data.error;
-        } else {
-          resultado.innerHTML = "<h3>✅ Resultado del análisis</h3><pre>" + JSON.stringify(data, null, 2) + "</pre>";
-        }
-      } catch (error) {
-        console.error("Error en frontend:", error);
-        resultado.innerHTML = "❌ Error al procesar el análisis.";
-      }
+      ],
+      max_tokens: 800
     });
-  </script>
-</body>
-</html>
+
+    const analisisTexto = completion.choices[0].message.content;
+
+    // 🔹 Crear PDF
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([600, 800]);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const { height } = page.getSize();
+
+    const lines = analisisTexto.split("\n");
+    let y = height - 50;
+
+    lines.forEach((line) => {
+      if (y < 50) {
+        page.addPage();
+        y = height - 50;
+      }
+      page.drawText(line, {
+        x: 50,
+        y,
+        size: 12,
+        font,
+        color: rgb(0, 0, 0),
+      });
+      y -= 18;
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const pdfBase64 = Buffer.from(pdfBytes).toString("base64");
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        analisis: analisisTexto,
+        pdf: `data:application/pdf;base64,${pdfBase64}`
+      })
+    };
+
+  } catch (error) {
+    console.error("❌ Error en diagnostico.js:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Error al procesar el análisis", detalle: error.message })
+    };
+  }
+}
