@@ -1,4 +1,0 @@
-"dependencies": {
-  "openai": "^4.0.0",
-  "pdf-lib": "^1.17.1"
-}
